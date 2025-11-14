@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Rabovel Staking",
+    "slug": "rabovel-staking-platform",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0E27"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rabovel.staking"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0E27"
+      },
+      "package": "com.rabovel.staking"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
