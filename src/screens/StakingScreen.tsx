@@ -1,4 +1,18 @@
-import React, { useState, useMemo, useEffect } from 'react';
+/**
+ * StakingScreen Component
+ * 
+ * Infrastructure Blueprint Pattern:
+ * - Modular architecture with clear separation of concerns
+ * - Custom hooks for data management and calculations
+ * - Optimized performance with memoization
+ * - Type-safe implementation
+ * - Reusable utility functions
+ */
+
+// ============================================================================
+// IMPORTS
+// ============================================================================
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,38 +25,81 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+
+// Context & Hooks
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
+
+// Components
 import { StakingPoolCard } from '../components/StakingPoolCard';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Ionicons } from '@expo/vector-icons';
-import { formatCurrency, formatPercent, formatNumber, formatLargeNumber } from '../utils/formatters';
+
+// Utils & Types
+import { formatCurrency } from '../utils/formatters';
 import { StakingPool, Stake } from '../types';
 
-export const StakingScreen: React.FC = () => {
-  const { theme, themeMode } = useTheme();
-  const { stakingPools, userStakes } = useApp();
-  // Default to 'stakes' tab if user has active stakes, otherwise 'pools'
-  const [activeTab, setActiveTab] = useState<'pools' | 'stakes'>(
-    userStakes.length > 0 ? 'stakes' : 'pools'
-  );
-  const [sortBy, setSortBy] = useState<'apy' | 'totalStaked' | 'lockPeriod'>('apy');
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const navigation = useNavigation();
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
+type TabType = 'pools' | 'stakes';
+type SortCriteria = 'apy' | 'totalStaked' | 'lockPeriod';
 
-  // Update time every minute for real-time countdown
+interface TimeRemaining {
+  days: number;
+  hours: number;
+  minutes: number;
+  isExpired: boolean;
+}
+
+interface PoolsStatistics {
+  totalStaked: number;
+  highestAPY: number;
+  averageAPY: number;
+  totalPools: number;
+}
+
+interface UserStakingStats {
+  totalStaked: number;
+  totalRewards: number;
+  activeStakesCount: number;
+}
+
+// ============================================================================
+// CONSTANTS & CONFIGURATION
+// ============================================================================
+const TIME_UPDATE_INTERVAL = 60000; // 1 minute in milliseconds
+const DEFAULT_TAB: TabType = 'pools';
+const DEFAULT_SORT: SortCriteria = 'apy';
+
+// ============================================================================
+// CUSTOM HOOKS
+// ============================================================================
+
+/**
+ * Hook for managing real-time clock updates
+ */
+const useRealtimeClock = (intervalMs: number = TIME_UPDATE_INTERVAL) => {
+  const [currentTime, setCurrentTime] = useState(new Date());
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(new Date());
-    }, 60000); // Update every minute
+    }, intervalMs);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [intervalMs]);
 
-  // Calculate pool statistics
-  const poolsStats = useMemo(() => {
-    if (stakingPools.length === 0) {
+  return currentTime;
+};
+
+/**
+ * Hook for calculating pool statistics
+ */
+const usePoolsStatistics = (pools: StakingPool[]): PoolsStatistics => {
+  return useMemo(() => {
+    if (pools.length === 0) {
       return {
         totalStaked: 0,
         highestAPY: 0,
@@ -51,85 +108,155 @@ export const StakingScreen: React.FC = () => {
       };
     }
 
-    const totalStaked = stakingPools.reduce((sum, pool) => sum + pool.totalStaked, 0);
-    const highestAPY = Math.max(...stakingPools.map((pool) => pool.apy));
-    const averageAPY = stakingPools.reduce((sum, pool) => sum + pool.apy, 0) / stakingPools.length;
+    const totalStaked = pools.reduce((sum, pool) => sum + pool.totalStaked, 0);
+    const highestAPY = Math.max(...pools.map((pool) => pool.apy));
+    const averageAPY = pools.reduce((sum, pool) => sum + pool.apy, 0) / pools.length;
 
     return {
       totalStaked,
       highestAPY,
       averageAPY,
-      totalPools: stakingPools.length,
+      totalPools: pools.length,
     };
-  }, [stakingPools]);
+  }, [pools]);
+};
 
-  // Sort pools based on selected criteria
-  const sortedPools = useMemo(() => {
-    const pools = [...stakingPools];
+/**
+ * Hook for calculating user staking statistics
+ */
+const useUserStakingStats = (stakes: Stake[]): UserStakingStats => {
+  return useMemo(() => {
+    const totalStaked = stakes.reduce((sum, stake) => sum + stake.amount, 0);
+    const totalRewards = stakes.reduce((sum, stake) => sum + stake.reward, 0);
+    const activeStakesCount = stakes.filter((s) => s.status === 'active').length;
+
+    return {
+      totalStaked,
+      totalRewards,
+      activeStakesCount,
+    };
+  }, [stakes]);
+};
+
+/**
+ * Hook for sorting pools based on criteria
+ */
+const useSortedPools = (pools: StakingPool[], sortBy: SortCriteria) => {
+  return useMemo(() => {
+    const sorted = [...pools];
+    
     switch (sortBy) {
       case 'apy':
-        return pools.sort((a, b) => b.apy - a.apy);
+        return sorted.sort((a, b) => b.apy - a.apy);
       case 'totalStaked':
-        return pools.sort((a, b) => b.totalStaked - a.totalStaked);
+        return sorted.sort((a, b) => b.totalStaked - a.totalStaked);
       case 'lockPeriod':
-        return pools.sort((a, b) => a.lockPeriod - b.lockPeriod);
+        return sorted.sort((a, b) => a.lockPeriod - b.lockPeriod);
       default:
-        return pools;
+        return sorted;
     }
-  }, [stakingPools, sortBy]);
+  }, [pools, sortBy]);
+};
 
-  const handlePoolPress = (pool: StakingPool) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    (navigation as any).navigate('StakeDetail', { pool });
-  };
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 
-  // Calculate total stats
-  const totalStaked = userStakes.reduce((sum, stake) => sum + stake.amount, 0);
-  const totalRewards = userStakes.reduce((sum, stake) => sum + stake.reward, 0);
-  const activeStakesCount = userStakes.filter(
-    (s) => s.status === 'active'
-  ).length;
+/**
+ * Calculate time remaining until a date
+ */
+const calculateTimeRemaining = (endDate: Date, currentTime: Date): TimeRemaining => {
+  const end = new Date(endDate);
+  const diff = end.getTime() - currentTime.getTime();
+  
+  if (diff <= 0) {
+    return { days: 0, hours: 0, minutes: 0, isExpired: true };
+  }
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  return { days, hours, minutes, isExpired: false };
+};
 
-  // Calculate time remaining for stakes
-  const getTimeRemaining = (endDate: Date): { days: number; hours: number; minutes: number; isExpired: boolean } => {
-    const end = new Date(endDate);
-    const diff = end.getTime() - currentTime.getTime();
-    
-    if (diff <= 0) {
-      return { days: 0, hours: 0, minutes: 0, isExpired: true };
-    }
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return { days, hours, minutes, isExpired: false };
-  };
+/**
+ * Format time remaining as a human-readable string
+ */
+const formatTimeRemainingText = (timeRemaining: TimeRemaining): string => {
+  const { days, hours, minutes, isExpired } = timeRemaining;
+  
+  if (isExpired) {
+    return 'Unlocked';
+  }
+  if (days > 0) {
+    return `${days}d ${hours}h left`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m left`;
+  }
+  return `${minutes}m left`;
+};
 
-  // Format time remaining text
-  const formatTimeRemaining = (stake: Stake): string => {
-    const { days, hours, minutes, isExpired } = getTimeRemaining(stake.endDate);
-    if (isExpired) {
-      return 'Unlocked';
-    }
-    if (days > 0) {
-      return `${days}d ${hours}h left`;
-    }
-    if (hours > 0) {
-      return `${hours}h ${minutes}m left`;
-    }
-    return `${minutes}m left`;
-  };
+/**
+ * Find pool associated with a stake
+ */
+const findPoolForStake = (stake: Stake, pools: StakingPool[]): StakingPool | undefined => {
+  return pools.find(pool => pool.id === stake.poolId);
+};
 
-  // Get pool for stake
-  const getPoolForStake = (stake: Stake): StakingPool | undefined => {
-    return stakingPools.find(pool => pool.id === stake.poolId);
-  };
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+export const StakingScreen: React.FC = () => {
+  // --------------------------------------------------------------------------
+  // Context & State
+  // --------------------------------------------------------------------------
+  const { theme, themeMode } = useTheme();
+  const { stakingPools, userStakes } = useApp();
+  const navigation = useNavigation();
+  
+  // Local State
+  const initialTab: TabType = userStakes.length > 0 ? 'stakes' : DEFAULT_TAB;
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  const [sortBy, setSortBy] = useState<SortCriteria>(DEFAULT_SORT);
 
-  const handleTabChange = (tab: 'pools' | 'stakes') => {
+  // --------------------------------------------------------------------------
+  // Custom Hooks
+  // --------------------------------------------------------------------------
+  const currentTime = useRealtimeClock(TIME_UPDATE_INTERVAL);
+  const poolsStats = usePoolsStatistics(stakingPools);
+  const userStats = useUserStakingStats(userStakes);
+  const sortedPools = useSortedPools(stakingPools, sortBy);
+
+  // --------------------------------------------------------------------------
+  // Event Handlers
+  // --------------------------------------------------------------------------
+  const handleTabChange = useCallback((tab: TabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
-  };
+  }, []);
+
+  const handlePoolPress = useCallback((pool: StakingPool) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    (navigation as any).navigate('StakeDetail', { pool });
+  }, [navigation]);
+
+  // --------------------------------------------------------------------------
+  // Computed Values
+  // --------------------------------------------------------------------------
+  const getTimeRemaining = useCallback((endDate: Date): TimeRemaining => {
+    return calculateTimeRemaining(endDate, currentTime);
+  }, [currentTime]);
+
+  const formatTimeRemaining = useCallback((stake: Stake): string => {
+    const timeRemaining = calculateTimeRemaining(stake.endDate, currentTime);
+    return formatTimeRemainingText(timeRemaining);
+  }, [currentTime]);
+
+  const getPoolForStake = useCallback((stake: Stake): StakingPool | undefined => {
+    return findPoolForStake(stake, stakingPools);
+  }, [stakingPools]);
 
   const styles = StyleSheet.create({
     container: {
@@ -663,14 +790,14 @@ export const StakingScreen: React.FC = () => {
                   <View style={styles.statItem}>
                     <Text style={styles.statLabel}>You've Staked</Text>
                     <Text style={styles.statValue}>
-                      {formatCurrency(totalStaked)}
+                      {formatCurrency(userStats.totalStaked)}
                     </Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
                     <Text style={styles.statLabel}>Earned</Text>
                     <Text style={styles.statValue}>
-                      {formatCurrency(totalRewards)}
+                      {formatCurrency(userStats.totalRewards)}
                     </Text>
                   </View>
                 </View>
@@ -819,9 +946,9 @@ export const StakingScreen: React.FC = () => {
                   <Text style={styles.simpleSectionTitle}>
                     Your Stakes ({userStakes.length})
                   </Text>
-                  {activeStakesCount > 0 && (
+                  {userStats.activeStakesCount > 0 && (
                     <Text style={styles.simpleSectionSubtitle}>
-                      {activeStakesCount} active
+                      {userStats.activeStakesCount} active
                     </Text>
                   )}
                 </View>
