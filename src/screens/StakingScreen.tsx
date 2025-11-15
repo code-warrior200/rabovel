@@ -180,8 +180,30 @@ export const StakingScreen: React.FC = () => {
       flex: 1,
       alignItems: 'center',
     },
-    statIconWrapper: {
-      marginBottom: theme.spacing.xs,
+    simpleInfoContainer: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+    },
+    simpleInfoText: {
+      fontSize: theme.typography.fontSize.sm,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    simpleSectionHeader: {
+      paddingHorizontal: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+    },
+    simpleSectionTitle: {
+      fontSize: theme.typography.fontSize.lg,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.text.primary,
+      marginBottom: 4,
+    },
+    simpleSectionSubtitle: {
+      fontSize: theme.typography.fontSize.sm,
+      color: theme.colors.text.secondary,
     },
     statDivider: {
       width: 1,
@@ -547,12 +569,6 @@ export const StakingScreen: React.FC = () => {
     stakeDetailItem: {
       flex: 1,
     },
-    stakeDetailRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      marginBottom: 4,
-    },
     stakeDetailLabel: {
       fontSize: theme.typography.fontSize.xs,
       color: theme.colors.text.tertiary,
@@ -628,67 +644,40 @@ export const StakingScreen: React.FC = () => {
           <View>
             <Text style={styles.title}>Staking</Text>
             <Text style={styles.subtitle}>
-              Earn rewards by staking your assets
+              Earn rewards on your assets
             </Text>
           </View>
         </View>
 
-        {/* Overall Stats Summary - Always Visible */}
-        <View style={styles.statsContainer}>
-          <Card style={styles.statsCard}>
-            <LinearGradient
-              colors={theme.colors.gradient.primary}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statsGradient}
-            >
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons
-                      name="wallet"
-                      size={16}
-                      color={theme.colors.text.primary}
-                      style={{ opacity: 0.7 }}
-                    />
+        {/* Simple Stats Summary - Only show if user has stakes */}
+        {userStakes.length > 0 && (
+          <View style={styles.statsContainer}>
+            <Card style={styles.statsCard}>
+              <LinearGradient
+                colors={theme.colors.gradient.primary}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.statsGradient}
+              >
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>You've Staked</Text>
+                    <Text style={styles.statValue}>
+                      {formatCurrency(totalStaked)}
+                    </Text>
                   </View>
-                  <Text style={styles.statLabel}>Total Staked</Text>
-                  <Text style={styles.statValue}>
-                    {formatCurrency(totalStaked)}
-                  </Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons
-                      name="trophy"
-                      size={16}
-                      color={theme.colors.text.primary}
-                      style={{ opacity: 0.7 }}
-                    />
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Earned</Text>
+                    <Text style={styles.statValue}>
+                      {formatCurrency(totalRewards)}
+                    </Text>
                   </View>
-                  <Text style={styles.statLabel}>Total Rewards</Text>
-                  <Text style={styles.statValue}>
-                    {formatCurrency(totalRewards)}
-                  </Text>
                 </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
-                  <View style={styles.statIconWrapper}>
-                    <Ionicons
-                      name="lock-closed"
-                      size={16}
-                      color={theme.colors.text.primary}
-                      style={{ opacity: 0.7 }}
-                    />
-                  </View>
-                  <Text style={styles.statLabel}>Active Stakes</Text>
-                  <Text style={styles.statValue}>{activeStakesCount}</Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </Card>
-        </View>
+              </LinearGradient>
+            </Card>
+          </View>
+        )}
 
         {/* Modern Segmented Control Tabs */}
         <View style={styles.tabContainer}>
@@ -769,245 +758,29 @@ export const StakingScreen: React.FC = () => {
 
         {activeTab === 'pools' ? (
           <>
-            {/* Info Card - Modern Design - Only show if no stakes */}
+            {/* Simple Info - Only show if no stakes */}
             {userStakes.length === 0 && (
-              <Card style={styles.infoCard} variant="outlined">
-                <LinearGradient
-                  colors={[theme.colors.info.dark + '15', theme.colors.info.dark + '05']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.infoGradient}
-                >
-                  <View style={styles.infoHeader}>
-                    <View style={styles.infoIconContainer}>
-                      <Ionicons
-                        name="information-circle"
-                        size={28}
-                        color={theme.colors.info.main}
-                      />
-                    </View>
-                    <View style={styles.infoTextContainer}>
-                      <Text style={styles.infoTitle}>How Staking Works</Text>
-                      <Text style={styles.infoText}>
-                        Lock your assets in staking pools to earn rewards. The
-                        longer you stake, the higher the APY. Rewards are
-                        distributed automatically. Tap on any pool to get started.
-                      </Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </Card>
+              <View style={styles.simpleInfoContainer}>
+                <Text style={styles.simpleInfoText}>
+                  Choose a pool below to start earning rewards. Tap any pool to stake.
+                </Text>
+              </View>
             )}
 
-            {/* Staking Pools */}
+            {/* Staking Pools - Simplified */}
             {stakingPools.length > 0 ? (
               <View style={styles.poolsContainer}>
-                {/* Enhanced Section Header */}
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderTop}>
-                    <View style={styles.sectionTitleContainer}>
-                      <View style={styles.sectionIconContainer}>
-                        <LinearGradient
-                          colors={theme.colors.gradient.secondary}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.sectionIconGradient}
-                        >
-                          <Ionicons
-                            name="water"
-                            size={20}
-                            color={theme.colors.background.primary}
-                          />
-                        </LinearGradient>
-                      </View>
-                      <View style={styles.sectionTitleContent}>
-                        <Text style={styles.sectionTitle}>Available Pools</Text>
-                        <Text style={styles.sectionSubtitle}>
-                          {stakingPools.length} pool{stakingPools.length !== 1 ? 's' : ''} available
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.poolCountBadge}>
-                      <Text style={styles.poolCountText}>
-                        {stakingPools.length}
-                      </Text>
-                    </View>
-                  </View>
+                {/* Simple Header */}
+                <View style={styles.simpleSectionHeader}>
+                  <Text style={styles.simpleSectionTitle}>
+                    Staking Pools ({stakingPools.length})
+                  </Text>
+                  <Text style={styles.simpleSectionSubtitle}>
+                    Showing best rates first
+                  </Text>
                 </View>
 
-                {/* Pool Statistics Cards */}
-                <View style={styles.poolStatsContainer}>
-                  <Card style={styles.poolStatCard} variant="elevated">
-                    <View style={styles.poolStatContent}>
-                      <View style={styles.poolStatIconContainer}>
-                        <LinearGradient
-                          colors={[theme.colors.success.main + '30', 'transparent']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.poolStatIconGradient}
-                        >
-                          <Ionicons
-                            name="trending-up"
-                            size={18}
-                            color={theme.colors.success.main}
-                          />
-                        </LinearGradient>
-                      </View>
-                      <View style={styles.poolStatDetails}>
-                        <Text style={styles.poolStatValue}>
-                          {formatNumber(poolsStats.highestAPY)}%
-                        </Text>
-                        <Text style={styles.poolStatLabel}>Highest APY</Text>
-                      </View>
-                    </View>
-                  </Card>
-
-                  <Card style={styles.poolStatCard} variant="elevated">
-                    <View style={styles.poolStatContent}>
-                      <View style={styles.poolStatIconContainer}>
-                        <LinearGradient
-                          colors={[theme.colors.info.main + '30', 'transparent']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.poolStatIconGradient}
-                        >
-                          <Ionicons
-                            name="stats-chart"
-                            size={18}
-                            color={theme.colors.info.main}
-                          />
-                        </LinearGradient>
-                      </View>
-                      <View style={styles.poolStatDetails}>
-                        <Text style={styles.poolStatValue}>
-                          {formatNumber(poolsStats.averageAPY)}%
-                        </Text>
-                        <Text style={styles.poolStatLabel}>Avg APY</Text>
-                      </View>
-                    </View>
-                  </Card>
-
-                  <Card style={styles.poolStatCard} variant="elevated">
-                    <View style={styles.poolStatContent}>
-                      <View style={styles.poolStatIconContainer}>
-                        <LinearGradient
-                          colors={[theme.colors.secondary[500] + '30', 'transparent']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.poolStatIconGradient}
-                        >
-                          <Ionicons
-                            name="wallet"
-                            size={18}
-                            color={theme.colors.secondary[400]}
-                          />
-                        </LinearGradient>
-                      </View>
-                      <View style={styles.poolStatDetails}>
-                        <Text style={styles.poolStatValue} numberOfLines={1}>
-                          ₦{formatLargeNumber(poolsStats.totalStaked)}
-                        </Text>
-                        <Text style={styles.poolStatLabel}>Total Staked</Text>
-                      </View>
-                    </View>
-                  </Card>
-                </View>
-
-                {/* Sort Options */}
-                <View style={styles.sortContainer}>
-                  <Text style={styles.sortLabel}>Sort by:</Text>
-                  <View style={styles.sortButtons}>
-                    <TouchableOpacity
-                      style={[
-                        styles.sortButton,
-                        sortBy === 'apy' && styles.sortButtonActive,
-                      ]}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSortBy('apy');
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name="trending-up"
-                        size={14}
-                        color={
-                          sortBy === 'apy'
-                            ? theme.colors.text.primary
-                            : theme.colors.text.secondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.sortButtonText,
-                          sortBy === 'apy' && styles.sortButtonTextActive,
-                        ]}
-                      >
-                        APY
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.sortButton,
-                        sortBy === 'totalStaked' && styles.sortButtonActive,
-                      ]}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSortBy('totalStaked');
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name="wallet-outline"
-                        size={14}
-                        color={
-                          sortBy === 'totalStaked'
-                            ? theme.colors.text.primary
-                            : theme.colors.text.secondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.sortButtonText,
-                          sortBy === 'totalStaked' && styles.sortButtonTextActive,
-                        ]}
-                      >
-                        Staked
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[
-                        styles.sortButton,
-                        sortBy === 'lockPeriod' && styles.sortButtonActive,
-                      ]}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setSortBy('lockPeriod');
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name="time-outline"
-                        size={14}
-                        color={
-                          sortBy === 'lockPeriod'
-                            ? theme.colors.text.primary
-                            : theme.colors.text.secondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.sortButtonText,
-                          sortBy === 'lockPeriod' && styles.sortButtonTextActive,
-                        ]}
-                      >
-                        Period
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Pool Cards */}
+                {/* Pool Cards - Already sorted by APY */}
                 <View style={styles.poolsList}>
                   {sortedPools.map((pool) => (
                     <StakingPoolCard
@@ -1017,29 +790,6 @@ export const StakingScreen: React.FC = () => {
                     />
                   ))}
                 </View>
-
-                {/* Quick Action Hint */}
-                {userStakes.length === 0 && (
-                  <View style={styles.quickActionHint}>
-                    <Card style={styles.quickActionCard} variant="outlined">
-                      <View style={styles.quickActionContent}>
-                        <Ionicons
-                          name="arrow-up-circle"
-                          size={24}
-                          color={theme.colors.primary[400]}
-                        />
-                        <View style={styles.quickActionText}>
-                          <Text style={styles.quickActionTitle}>
-                            Ready to start staking?
-                          </Text>
-                          <Text style={styles.quickActionSubtitle}>
-                            Tap any pool above to view details and stake your assets
-                          </Text>
-                        </View>
-                      </View>
-                    </Card>
-                  </View>
-                )}
               </View>
             ) : (
               <Card style={styles.emptyCard} variant="outlined">
@@ -1064,32 +814,16 @@ export const StakingScreen: React.FC = () => {
             {/* My Stakes */}
             {userStakes.length > 0 ? (
               <View style={styles.stakesContainer}>
-                {/* Section Header for Stakes */}
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionHeaderTop}>
-                    <View style={styles.sectionTitleContainer}>
-                      <View style={styles.sectionIconContainer}>
-                        <LinearGradient
-                          colors={theme.colors.gradient.secondary}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.sectionIconGradient}
-                        >
-                          <Ionicons
-                            name="lock-closed"
-                            size={20}
-                            color={theme.colors.background.primary}
-                          />
-                        </LinearGradient>
-                      </View>
-                      <View style={styles.sectionTitleContent}>
-                        <Text style={styles.sectionTitle}>Your Stakes</Text>
-                        <Text style={styles.sectionSubtitle}>
-                          {activeStakesCount} active • {userStakes.length} total
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
+                {/* Simple Header */}
+                <View style={styles.simpleSectionHeader}>
+                  <Text style={styles.simpleSectionTitle}>
+                    Your Stakes ({userStakes.length})
+                  </Text>
+                  {activeStakesCount > 0 && (
+                    <Text style={styles.simpleSectionSubtitle}>
+                      {activeStakesCount} active
+                    </Text>
+                  )}
                 </View>
                 {userStakes.map((stake, index) => (
                   <Card key={stake.id} style={styles.stakeCard} variant="outlined">
@@ -1142,31 +876,17 @@ export const StakingScreen: React.FC = () => {
                         </View>
                         <View style={styles.stakeDetails}>
                           <View style={styles.stakeDetailItem}>
-                            <View style={styles.stakeDetailRow}>
-                              <Ionicons
-                                name="trophy-outline"
-                                size={16}
-                                color={theme.colors.secondary[400]}
-                              />
-                              <Text style={styles.stakeDetailLabel}>
-                                Total Rewards
-                              </Text>
-                            </View>
+                            <Text style={styles.stakeDetailLabel}>
+                              Rewards Earned
+                            </Text>
                             <Text style={styles.stakeDetailValue}>
                               {formatCurrency(stake.reward)}
                             </Text>
                           </View>
                           <View style={styles.stakeDetailItem}>
-                            <View style={styles.stakeDetailRow}>
-                              <Ionicons
-                                name="time-outline"
-                                size={16}
-                                color={theme.colors.info.main}
-                              />
-                              <Text style={styles.stakeDetailLabel}>
-                                {getTimeRemaining(stake.endDate).isExpired ? 'Status' : 'Time Left'}
-                              </Text>
-                            </View>
+                            <Text style={styles.stakeDetailLabel}>
+                              {getTimeRemaining(stake.endDate).isExpired ? 'Status' : 'Unlocks In'}
+                            </Text>
                             <Text style={[
                               styles.stakeDetailValue,
                               getTimeRemaining(stake.endDate).isExpired && styles.unlockedText
@@ -1175,20 +895,6 @@ export const StakingScreen: React.FC = () => {
                             </Text>
                           </View>
                         </View>
-                        {getPoolForStake(stake) && (
-                          <View style={styles.stakePoolInfo}>
-                            <View style={styles.stakePoolInfoRow}>
-                              <Ionicons
-                                name="water-outline"
-                                size={14}
-                                color={theme.colors.text.tertiary}
-                              />
-                              <Text style={styles.stakePoolInfoText}>
-                                {getPoolForStake(stake)?.asset.symbol} Pool • {formatNumber(getPoolForStake(stake)?.apy || 0)}% APY
-                              </Text>
-                            </View>
-                          </View>
-                        )}
                       </View>
                     </View>
                   </Card>
@@ -1213,12 +919,12 @@ export const StakingScreen: React.FC = () => {
                 <Text style={styles.emptyTitle}>No Active Stakes</Text>
                 <Text style={styles.emptyText}>
                   {stakingPools.length > 0 
-                    ? 'Start staking your assets to earn passive rewards. Browse available pools to get started.'
-                    : 'No staking pools are currently available. Check back later for new opportunities.'}
+                    ? 'Start earning rewards by staking your assets. Choose a pool to begin.'
+                    : 'No pools available right now. Check back later.'}
                 </Text>
                 {stakingPools.length > 0 && (
                   <Button
-                    title="Browse Pools"
+                    title="View Pools"
                     onPress={() => handleTabChange('pools')}
                     variant="primary"
                     size="medium"
