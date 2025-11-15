@@ -8,6 +8,9 @@ import { SignInScreen } from '../screens/SignInScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { StakeDetailScreen } from '../screens/StakeDetailScreen';
 import { TradingDetailScreen } from '../screens/TradingDetailScreen';
+import { AssetDetailScreen } from '../screens/AssetDetailScreen';
+import { BuyAssetScreen } from '../screens/BuyAssetScreen';
+import { SellAssetScreen } from '../screens/SellAssetScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -47,6 +50,9 @@ const MainNavigator = () => {
       <AppStack.Screen name="MainTabs" component={TabNavigator} />
       <AppStack.Screen name="StakeDetail" component={StakeDetailScreen} />
       <AppStack.Screen name="TradingDetail" component={TradingDetailScreen} />
+      <AppStack.Screen name="AssetDetail" component={AssetDetailScreen} />
+      <AppStack.Screen name="BuyAsset" component={BuyAssetScreen} />
+      <AppStack.Screen name="SellAsset" component={SellAssetScreen} />
       <AppStack.Screen name="Notifications" component={NotificationsScreen} />
       <AppStack.Screen name="Profile" component={ProfileScreen} />
       <AppStack.Screen name="Settings" component={SettingsScreen} />
