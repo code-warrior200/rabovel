@@ -12,7 +12,7 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import {
   ScrollView,
   StatusBar,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -66,12 +67,61 @@ interface UserStakingStats {
   activeStakesCount: number;
 }
 
+interface GamificationStats {
+  xp: number;
+  level: number;
+  nextLevelXP: number;
+  currentLevelXP: number;
+  progressPercent: number;
+  achievements: Achievement[];
+  streak: number;
+  rank: string;
+}
+
+interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+  progress: number;
+  target: number;
+}
+
 // ============================================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================================
 const TIME_UPDATE_INTERVAL = 60000; // 1 minute in milliseconds
 const DEFAULT_TAB: TabType = 'pools';
 const DEFAULT_SORT: SortCriteria = 'apy';
+
+// Gamification constants
+const XP_PER_STAKE = 100;
+const XP_PER_REWARD_UNIT = 10;
+const XP_PER_DAY_STAKED = 50;
+const BASE_XP_PER_LEVEL = 1000;
+const LEVEL_MULTIPLIER = 1.5;
+
+// Rank thresholds
+const RANKS = [
+  { name: 'Novice', minXP: 0, icon: '🌱' },
+  { name: 'Bronze', minXP: 1000, icon: '🥉' },
+  { name: 'Silver', minXP: 5000, icon: '🥈' },
+  { name: 'Gold', minXP: 15000, icon: '🥇' },
+  { name: 'Platinum', minXP: 50000, icon: '💎' },
+  { name: 'Diamond', minXP: 150000, icon: '✨' },
+  { name: 'Master', minXP: 500000, icon: '👑' },
+];
+
+// Achievement definitions
+const ACHIEVEMENTS: Achievement[] = [
+  { id: 'first_stake', name: 'First Stake', description: 'Make your first stake', icon: '🎯', unlocked: false, progress: 0, target: 1 },
+  { id: 'stake_10', name: 'Dedicated', description: 'Create 10 stakes', icon: '🔥', unlocked: false, progress: 0, target: 10 },
+  { id: 'stake_100', name: 'Veteran', description: 'Create 100 stakes', icon: '⚡', unlocked: false, progress: 0, target: 100 },
+  { id: 'reward_1000', name: 'Reward Hunter', description: 'Earn 1,000 in rewards', icon: '💰', unlocked: false, progress: 0, target: 1000 },
+  { id: 'streak_7', name: 'Weekly Warrior', description: 'Maintain 7-day streak', icon: '📅', unlocked: false, progress: 0, target: 7 },
+  { id: 'streak_30', name: 'Monthly Master', description: 'Maintain 30-day streak', icon: '🌟', unlocked: false, progress: 0, target: 30 },
+];
 
 // ============================================================================
 // CUSTOM HOOKS
@@ -158,6 +208,93 @@ const useSortedPools = (pools: StakingPool[], sortBy: SortCriteria) => {
   }, [pools, sortBy]);
 };
 
+/**
+ * Hook for calculating XP and level based on staking activity
+ */
+const useGamification = (stakes: Stake[]): GamificationStats => {
+  return useMemo(() => {
+    // Calculate total XP
+    let totalXP = 0;
+    
+    // XP from number of stakes
+    totalXP += stakes.length * XP_PER_STAKE;
+    
+    // XP from rewards earned
+    const totalRewards = stakes.reduce((sum, stake) => sum + stake.reward, 0);
+    totalXP += Math.floor(totalRewards * XP_PER_REWARD_UNIT);
+    
+    // XP from days staked
+    stakes.forEach(stake => {
+      const daysStaked = Math.max(0, Math.floor((stake.endDate.getTime() - stake.startDate.getTime()) / (1000 * 60 * 60 * 24)));
+      totalXP += daysStaked * XP_PER_DAY_STAKED;
+    });
+
+    // Calculate level
+    let level = 1;
+    let xpForCurrentLevel = 0;
+    let xpForNextLevel = BASE_XP_PER_LEVEL;
+    
+    while (totalXP >= xpForNextLevel) {
+      xpForCurrentLevel = xpForNextLevel;
+      level++;
+      xpForNextLevel = xpForCurrentLevel + Math.floor(BASE_XP_PER_LEVEL * Math.pow(LEVEL_MULTIPLIER, level - 1));
+    }
+
+    const currentLevelXP = totalXP - xpForCurrentLevel;
+    const xpNeededForNext = xpForNextLevel - xpForCurrentLevel;
+    const progressPercent = (currentLevelXP / xpNeededForNext) * 100;
+
+    // Calculate rank
+    const rank = RANKS.slice().reverse().find(r => totalXP >= r.minXP) || RANKS[0];
+
+    // Calculate achievements
+    const achievements = ACHIEVEMENTS.map(achievement => {
+      let progress = 0;
+      switch (achievement.id) {
+        case 'first_stake':
+          progress = stakes.length >= 1 ? 1 : 0;
+          break;
+        case 'stake_10':
+          progress = Math.min(stakes.length, 10);
+          break;
+        case 'stake_100':
+          progress = Math.min(stakes.length, 100);
+          break;
+        case 'reward_1000':
+          progress = Math.min(totalRewards, 1000);
+          break;
+        case 'streak_7':
+          // Simplified streak calculation - in real app, track daily activity
+          progress = Math.min(7, Math.floor(stakes.length / 2));
+          break;
+        case 'streak_30':
+          progress = Math.min(30, Math.floor(stakes.length / 2));
+          break;
+      }
+      
+      return {
+        ...achievement,
+        progress,
+        unlocked: progress >= achievement.target,
+      };
+    });
+
+    // Calculate streak (simplified - based on recent activity)
+    const streak = Math.min(30, Math.floor(stakes.filter(s => s.status === 'active').length / 2));
+
+    return {
+      xp: totalXP,
+      level,
+      nextLevelXP: xpForNextLevel,
+      currentLevelXP,
+      progressPercent: Math.min(100, Math.max(0, progressPercent)),
+      achievements,
+      streak,
+      rank: rank.name,
+    };
+  }, [stakes]);
+};
+
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
@@ -228,6 +365,19 @@ export const StakingScreen: React.FC = () => {
   const poolsStats = usePoolsStatistics(stakingPools);
   const userStats = useUserStakingStats(userStakes);
   const sortedPools = useSortedPools(stakingPools, sortBy);
+  const gamification = useGamification(userStakes);
+  
+  // Animation refs
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animate progress bar
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: gamification.progressPercent,
+      duration: 800,
+      useNativeDriver: false,
+    }).start();
+  }, [gamification.progressPercent, progressAnim]);
 
   // --------------------------------------------------------------------------
   // Event Handlers
@@ -286,6 +436,124 @@ export const StakingScreen: React.FC = () => {
       color: theme.colors.text.secondary,
       marginTop: 4,
     },
+    headerTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: theme.spacing.md,
+    },
+    headerTextContainer: {
+      flex: 1,
+    },
+    levelBadgeCard: {
+      padding: 0,
+      overflow: 'hidden',
+      borderRadius: theme.borderRadius.full,
+    },
+    levelBadgeGradient: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    levelBadgeContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    levelBadgeText: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.background.primary,
+    },
+    xpContainer: {
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
+    },
+    xpHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.xs,
+    },
+    xpLabel: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.semiBold,
+      color: theme.colors.text.primary,
+    },
+    xpValue: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.secondary[400],
+    },
+    xpProgressBarContainer: {
+      marginTop: theme.spacing.xs,
+    },
+    xpProgressBarBackground: {
+      height: 8,
+      backgroundColor: theme.colors.background.tertiary,
+      borderRadius: theme.borderRadius.full,
+      overflow: 'hidden',
+      marginBottom: theme.spacing.xs,
+    },
+    xpProgressBarFill: {
+      height: '100%',
+      borderRadius: theme.borderRadius.full,
+    },
+    xpNextLevel: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.text.tertiary,
+      textAlign: 'right',
+    },
+    streakContainer: {
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.xs,
+    },
+    streakGradient: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.sm,
+      borderRadius: theme.borderRadius.md,
+      gap: theme.spacing.xs,
+    },
+    streakText: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.warning.light,
+    },
+    achievementsPreview: {
+      marginTop: theme.spacing.md,
+    },
+    achievementsLabel: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.text.tertiary,
+      marginBottom: theme.spacing.xs,
+      fontWeight: theme.typography.fontWeight.medium,
+    },
+    achievementsList: {
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+    },
+    achievementBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.background.tertiary,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.borderRadius.md,
+      gap: theme.spacing.xs,
+      maxWidth: 100,
+    },
+    achievementIcon: {
+      fontSize: 16,
+    },
+    achievementName: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.text.secondary,
+      fontWeight: theme.typography.fontWeight.medium,
+      flex: 1,
+    },
     statsContainer: {
       paddingHorizontal: theme.spacing.md,
       marginBottom: theme.spacing.lg,
@@ -306,6 +574,18 @@ export const StakingScreen: React.FC = () => {
     statItem: {
       flex: 1,
       alignItems: 'center',
+    },
+    statHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginBottom: 2,
+    },
+    statXP: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.secondary[400],
+      fontWeight: theme.typography.fontWeight.semiBold,
+      marginTop: 2,
     },
     simpleInfoContainer: {
       paddingHorizontal: theme.spacing.md,
@@ -766,17 +1046,105 @@ export const StakingScreen: React.FC = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header with Gamification */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Staking</Text>
-            <Text style={styles.subtitle}>
-              Earn rewards on your assets
-            </Text>
+          <View style={styles.headerTop}>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.title}>Staking</Text>
+              <Text style={styles.subtitle}>
+                Earn rewards on your assets
+              </Text>
+            </View>
+            {/* Level Badge */}
+            <Card style={styles.levelBadgeCard}>
+              <LinearGradient
+                colors={[theme.colors.secondary[400], theme.colors.secondary[600]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.levelBadgeGradient}
+              >
+                <View style={styles.levelBadgeContent}>
+                  <Ionicons name="trophy" size={20} color={theme.colors.background.primary} />
+                  <Text style={styles.levelBadgeText}>Lv {gamification.level}</Text>
+                </View>
+              </LinearGradient>
+            </Card>
           </View>
+          
+          {/* XP Progress Bar */}
+          <View style={styles.xpContainer}>
+            <View style={styles.xpHeader}>
+              <Text style={styles.xpLabel}>
+                {RANKS.find(r => r.name === gamification.rank)?.icon} {gamification.rank}
+              </Text>
+              <Text style={styles.xpValue}>{gamification.xp.toLocaleString()} XP</Text>
+            </View>
+            <View style={styles.xpProgressBarContainer}>
+              <View style={styles.xpProgressBarBackground}>
+                <Animated.View
+                  style={[
+                    styles.xpProgressBarFill,
+                    {
+                      width: progressAnim.interpolate({
+                        inputRange: [0, 100],
+                        outputRange: ['0%', '100%'],
+                      }),
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[theme.colors.secondary[400], theme.colors.secondary[600]]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </Animated.View>
+              </View>
+              <Text style={styles.xpNextLevel}>
+                Lv {gamification.level + 1} in {Math.ceil((gamification.nextLevelXP - gamification.xp) / 100)} XP
+              </Text>
+            </View>
+          </View>
+
+          {/* Streak Badge */}
+          {gamification.streak > 0 && (
+            <View style={styles.streakContainer}>
+              <LinearGradient
+                colors={[theme.colors.warning.main + '20', theme.colors.warning.dark + '10']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.streakGradient}
+              >
+                <Ionicons name="flame" size={18} color={theme.colors.warning.light} />
+                <Text style={styles.streakText}>
+                  {gamification.streak} Day Streak 🔥
+                </Text>
+              </LinearGradient>
+            </View>
+          )}
+
+          {/* Achievement Badges Preview */}
+          {gamification.achievements.filter(a => a.unlocked).length > 0 && (
+            <View style={styles.achievementsPreview}>
+              <Text style={styles.achievementsLabel}>Recent Achievements</Text>
+              <View style={styles.achievementsList}>
+                {gamification.achievements
+                  .filter(a => a.unlocked)
+                  .slice(0, 3)
+                  .map((achievement) => (
+                    <View key={achievement.id} style={styles.achievementBadge}>
+                      <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                      <Text style={styles.achievementName} numberOfLines={1}>
+                        {achievement.name}
+                      </Text>
+                    </View>
+                  ))}
+              </View>
+            </View>
+          )}
         </View>
 
-        {/* Simple Stats Summary - Only show if user has stakes */}
+        {/* Gamified Stats Summary */}
         {userStakes.length > 0 && (
           <View style={styles.statsContainer}>
             <Card style={styles.statsCard}>
@@ -788,17 +1156,36 @@ export const StakingScreen: React.FC = () => {
               >
                 <View style={styles.statsRow}>
                   <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>You've Staked</Text>
+                    <View style={styles.statHeader}>
+                      <Ionicons name="lock-closed" size={16} color={theme.colors.text.primary} style={{ opacity: 0.8 }} />
+                      <Text style={styles.statLabel}>Staked</Text>
+                    </View>
                     <Text style={styles.statValue}>
                       {formatCurrency(userStats.totalStaked)}
                     </Text>
+                    <Text style={styles.statXP}>+{Math.floor(userStats.totalStaked / 100) * 10} XP</Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Earned</Text>
+                    <View style={styles.statHeader}>
+                      <Ionicons name="gift" size={16} color={theme.colors.secondary[400]} style={{ opacity: 0.8 }} />
+                      <Text style={styles.statLabel}>Rewards</Text>
+                    </View>
                     <Text style={styles.statValue}>
                       {formatCurrency(userStats.totalRewards)}
                     </Text>
+                    <Text style={styles.statXP}>+{Math.floor(userStats.totalRewards * XP_PER_REWARD_UNIT)} XP</Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <View style={styles.statHeader}>
+                      <Ionicons name="star" size={16} color={theme.colors.warning.light} style={{ opacity: 0.8 }} />
+                      <Text style={styles.statLabel}>Stakes</Text>
+                    </View>
+                    <Text style={styles.statValue}>
+                      {userStakes.length}
+                    </Text>
+                    <Text style={styles.statXP}>+{userStakes.length * XP_PER_STAKE} XP</Text>
                   </View>
                 </View>
               </LinearGradient>
