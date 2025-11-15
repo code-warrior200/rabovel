@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,14 +18,27 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatPercent, formatNumber, formatLargeNumber } from '../utils/formatters';
-import { StakingPool } from '../types';
+import { StakingPool, Stake } from '../types';
 
 export const StakingScreen: React.FC = () => {
   const { theme, themeMode } = useTheme();
   const { stakingPools, userStakes } = useApp();
-  const [activeTab, setActiveTab] = useState<'pools' | 'stakes'>('pools');
+  // Default to 'stakes' tab if user has active stakes, otherwise 'pools'
+  const [activeTab, setActiveTab] = useState<'pools' | 'stakes'>(
+    userStakes.length > 0 ? 'stakes' : 'pools'
+  );
   const [sortBy, setSortBy] = useState<'apy' | 'totalStaked' | 'lockPeriod'>('apy');
+  const [currentTime, setCurrentTime] = useState(new Date());
   const navigation = useNavigation();
+
+  // Update time every minute for real-time countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Calculate pool statistics
   const poolsStats = useMemo(() => {
@@ -76,6 +89,42 @@ export const StakingScreen: React.FC = () => {
   const activeStakesCount = userStakes.filter(
     (s) => s.status === 'active'
   ).length;
+
+  // Calculate time remaining for stakes
+  const getTimeRemaining = (endDate: Date): { days: number; hours: number; minutes: number; isExpired: boolean } => {
+    const end = new Date(endDate);
+    const diff = end.getTime() - currentTime.getTime();
+    
+    if (diff <= 0) {
+      return { days: 0, hours: 0, minutes: 0, isExpired: true };
+    }
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return { days, hours, minutes, isExpired: false };
+  };
+
+  // Format time remaining text
+  const formatTimeRemaining = (stake: Stake): string => {
+    const { days, hours, minutes, isExpired } = getTimeRemaining(stake.endDate);
+    if (isExpired) {
+      return 'Unlocked';
+    }
+    if (days > 0) {
+      return `${days}d ${hours}h left`;
+    }
+    if (hours > 0) {
+      return `${hours}h ${minutes}m left`;
+    }
+    return `${minutes}m left`;
+  };
+
+  // Get pool for stake
+  const getPoolForStake = (stake: Stake): StakingPool | undefined => {
+    return stakingPools.find(pool => pool.id === stake.poolId);
+  };
 
   const handleTabChange = (tab: 'pools' | 'stakes') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -130,6 +179,9 @@ export const StakingScreen: React.FC = () => {
     statItem: {
       flex: 1,
       alignItems: 'center',
+    },
+    statIconWrapper: {
+      marginBottom: theme.spacing.xs,
     },
     statDivider: {
       width: 1,
@@ -511,6 +563,56 @@ export const StakingScreen: React.FC = () => {
       fontWeight: theme.typography.fontWeight.bold,
       color: theme.colors.text.primary,
     },
+    unlockedText: {
+      color: theme.colors.success.light,
+    },
+    stakePoolInfo: {
+      marginTop: theme.spacing.md,
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border.dark,
+    },
+    stakePoolInfoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    stakePoolInfoText: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.text.tertiary,
+      fontWeight: theme.typography.fontWeight.medium,
+    },
+    quickActionHint: {
+      marginTop: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.md,
+    },
+    quickActionCard: {
+      padding: 0,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: theme.colors.primary[500] + '30',
+    },
+    quickActionContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.primary[500] + '10',
+    },
+    quickActionText: {
+      flex: 1,
+      marginLeft: theme.spacing.md,
+    },
+    quickActionTitle: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.text.primary,
+      marginBottom: 2,
+    },
+    quickActionSubtitle: {
+      fontSize: theme.typography.fontSize.xs,
+      color: theme.colors.text.secondary,
+      lineHeight: 16,
+    },
   });
 
   return (
@@ -531,40 +633,62 @@ export const StakingScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Stats Summary - Show when viewing My Stakes */}
-        {activeTab === 'stakes' && userStakes.length > 0 && (
-          <View style={styles.statsContainer}>
-            <Card style={styles.statsCard}>
-              <LinearGradient
-                colors={theme.colors.gradient.primary}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.statsGradient}
-              >
-                <View style={styles.statsRow}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Total Staked</Text>
-                    <Text style={styles.statValue}>
-                      {formatCurrency(totalStaked)}
-                    </Text>
+        {/* Overall Stats Summary - Always Visible */}
+        <View style={styles.statsContainer}>
+          <Card style={styles.statsCard}>
+            <LinearGradient
+              colors={theme.colors.gradient.primary}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.statsGradient}
+            >
+              <View style={styles.statsRow}>
+                <View style={styles.statItem}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons
+                      name="wallet"
+                      size={16}
+                      color={theme.colors.text.primary}
+                      style={{ opacity: 0.7 }}
+                    />
                   </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Total Rewards</Text>
-                    <Text style={styles.statValue}>
-                      {formatCurrency(totalRewards)}
-                    </Text>
-                  </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Active Stakes</Text>
-                    <Text style={styles.statValue}>{activeStakesCount}</Text>
-                  </View>
+                  <Text style={styles.statLabel}>Total Staked</Text>
+                  <Text style={styles.statValue}>
+                    {formatCurrency(totalStaked)}
+                  </Text>
                 </View>
-              </LinearGradient>
-            </Card>
-          </View>
-        )}
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons
+                      name="trophy"
+                      size={16}
+                      color={theme.colors.text.primary}
+                      style={{ opacity: 0.7 }}
+                    />
+                  </View>
+                  <Text style={styles.statLabel}>Total Rewards</Text>
+                  <Text style={styles.statValue}>
+                    {formatCurrency(totalRewards)}
+                  </Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <View style={styles.statIconWrapper}>
+                    <Ionicons
+                      name="lock-closed"
+                      size={16}
+                      color={theme.colors.text.primary}
+                      style={{ opacity: 0.7 }}
+                    />
+                  </View>
+                  <Text style={styles.statLabel}>Active Stakes</Text>
+                  <Text style={styles.statValue}>{activeStakesCount}</Text>
+                </View>
+              </View>
+            </LinearGradient>
+          </Card>
+        </View>
 
         {/* Modern Segmented Control Tabs */}
         <View style={styles.tabContainer}>
@@ -645,33 +769,35 @@ export const StakingScreen: React.FC = () => {
 
         {activeTab === 'pools' ? (
           <>
-            {/* Info Card - Modern Design */}
-            <Card style={styles.infoCard} variant="outlined">
-              <LinearGradient
-                colors={[theme.colors.info.dark + '15', theme.colors.info.dark + '05']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.infoGradient}
-              >
-                <View style={styles.infoHeader}>
-                  <View style={styles.infoIconContainer}>
-                    <Ionicons
-                      name="information-circle"
-                      size={28}
-                      color={theme.colors.info.main}
-                    />
+            {/* Info Card - Modern Design - Only show if no stakes */}
+            {userStakes.length === 0 && (
+              <Card style={styles.infoCard} variant="outlined">
+                <LinearGradient
+                  colors={[theme.colors.info.dark + '15', theme.colors.info.dark + '05']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.infoGradient}
+                >
+                  <View style={styles.infoHeader}>
+                    <View style={styles.infoIconContainer}>
+                      <Ionicons
+                        name="information-circle"
+                        size={28}
+                        color={theme.colors.info.main}
+                      />
+                    </View>
+                    <View style={styles.infoTextContainer}>
+                      <Text style={styles.infoTitle}>How Staking Works</Text>
+                      <Text style={styles.infoText}>
+                        Lock your assets in staking pools to earn rewards. The
+                        longer you stake, the higher the APY. Rewards are
+                        distributed automatically. Tap on any pool to get started.
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.infoTextContainer}>
-                    <Text style={styles.infoTitle}>How Staking Works</Text>
-                    <Text style={styles.infoText}>
-                      Lock your assets in staking pools to earn rewards. The
-                      longer you stake, the higher the APY. Rewards are
-                      distributed automatically.
-                    </Text>
-                  </View>
-                </View>
-              </LinearGradient>
-            </Card>
+                </LinearGradient>
+              </Card>
+            )}
 
             {/* Staking Pools */}
             {stakingPools.length > 0 ? (
@@ -891,6 +1017,29 @@ export const StakingScreen: React.FC = () => {
                     />
                   ))}
                 </View>
+
+                {/* Quick Action Hint */}
+                {userStakes.length === 0 && (
+                  <View style={styles.quickActionHint}>
+                    <Card style={styles.quickActionCard} variant="outlined">
+                      <View style={styles.quickActionContent}>
+                        <Ionicons
+                          name="arrow-up-circle"
+                          size={24}
+                          color={theme.colors.primary[400]}
+                        />
+                        <View style={styles.quickActionText}>
+                          <Text style={styles.quickActionTitle}>
+                            Ready to start staking?
+                          </Text>
+                          <Text style={styles.quickActionSubtitle}>
+                            Tap any pool above to view details and stake your assets
+                          </Text>
+                        </View>
+                      </View>
+                    </Card>
+                  </View>
+                )}
               </View>
             ) : (
               <Card style={styles.emptyCard} variant="outlined">
@@ -915,6 +1064,33 @@ export const StakingScreen: React.FC = () => {
             {/* My Stakes */}
             {userStakes.length > 0 ? (
               <View style={styles.stakesContainer}>
+                {/* Section Header for Stakes */}
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderTop}>
+                    <View style={styles.sectionTitleContainer}>
+                      <View style={styles.sectionIconContainer}>
+                        <LinearGradient
+                          colors={theme.colors.gradient.secondary}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.sectionIconGradient}
+                        >
+                          <Ionicons
+                            name="lock-closed"
+                            size={20}
+                            color={theme.colors.background.primary}
+                          />
+                        </LinearGradient>
+                      </View>
+                      <View style={styles.sectionTitleContent}>
+                        <Text style={styles.sectionTitle}>Your Stakes</Text>
+                        <Text style={styles.sectionSubtitle}>
+                          {activeStakesCount} active • {userStakes.length} total
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
                 {userStakes.map((stake, index) => (
                   <Card key={stake.id} style={styles.stakeCard} variant="outlined">
                     <View style={styles.stakeCardHeader}>
@@ -939,7 +1115,7 @@ export const StakingScreen: React.FC = () => {
                               {formatCurrency(stake.amount)}
                             </Text>
                             <Text style={styles.stakeAsset}>
-                              Asset
+                              {getPoolForStake(stake)?.asset.symbol || 'Asset'}
                             </Text>
                           </View>
                           <View
@@ -983,23 +1159,36 @@ export const StakingScreen: React.FC = () => {
                           <View style={styles.stakeDetailItem}>
                             <View style={styles.stakeDetailRow}>
                               <Ionicons
-                                name="calendar-outline"
+                                name="time-outline"
                                 size={16}
                                 color={theme.colors.info.main}
                               />
                               <Text style={styles.stakeDetailLabel}>
-                                End Date
+                                {getTimeRemaining(stake.endDate).isExpired ? 'Status' : 'Time Left'}
                               </Text>
                             </View>
-                            <Text style={styles.stakeDetailValue}>
-                              {stake.endDate.toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
+                            <Text style={[
+                              styles.stakeDetailValue,
+                              getTimeRemaining(stake.endDate).isExpired && styles.unlockedText
+                            ]}>
+                              {formatTimeRemaining(stake)}
                             </Text>
                           </View>
                         </View>
+                        {getPoolForStake(stake) && (
+                          <View style={styles.stakePoolInfo}>
+                            <View style={styles.stakePoolInfoRow}>
+                              <Ionicons
+                                name="water-outline"
+                                size={14}
+                                color={theme.colors.text.tertiary}
+                              />
+                              <Text style={styles.stakePoolInfoText}>
+                                {getPoolForStake(stake)?.asset.symbol} Pool • {formatNumber(getPoolForStake(stake)?.apy || 0)}% APY
+                              </Text>
+                            </View>
+                          </View>
+                        )}
                       </View>
                     </View>
                   </Card>
@@ -1023,16 +1212,19 @@ export const StakingScreen: React.FC = () => {
                 </View>
                 <Text style={styles.emptyTitle}>No Active Stakes</Text>
                 <Text style={styles.emptyText}>
-                  Start staking your assets to earn passive rewards. Browse
-                  available pools below.
+                  {stakingPools.length > 0 
+                    ? 'Start staking your assets to earn passive rewards. Browse available pools to get started.'
+                    : 'No staking pools are currently available. Check back later for new opportunities.'}
                 </Text>
-                <Button
-                  title="Browse Pools"
-                  onPress={() => handleTabChange('pools')}
-                  variant="primary"
-                  size="medium"
-                  style={styles.emptyButton}
-                />
+                {stakingPools.length > 0 && (
+                  <Button
+                    title="Browse Pools"
+                    onPress={() => handleTabChange('pools')}
+                    variant="primary"
+                    size="medium"
+                    style={styles.emptyButton}
+                  />
+                )}
               </Card>
             )}
           </>
