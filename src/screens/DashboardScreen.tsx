@@ -415,7 +415,14 @@ export const DashboardScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
               {stakingPools.slice(0, 2).map((pool) => (
-                <AssetCard key={pool.id} asset={pool.asset} />
+                <AssetCard
+                  key={pool.id}
+                  asset={pool.asset}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    (navigation as any).navigate('AssetDetail', { asset: pool.asset });
+                  }}
+                />
               ))}
             </View>
           )}
@@ -438,7 +445,14 @@ export const DashboardScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
             {assets.slice(0, 3).map((asset) => (
-              <AssetCard key={asset.id} asset={asset} />
+              <AssetCard
+                key={asset.id}
+                asset={asset}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  (navigation as any).navigate('AssetDetail', { asset });
+                }}
+              />
             ))}
           </View>
         </ScrollView>

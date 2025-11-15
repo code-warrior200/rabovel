@@ -24,10 +24,11 @@ import { formatCurrency } from '../utils/formatters';
 export const ProfileScreen: React.FC = () => {
   const { theme, themeMode } = useTheme();
   const navigation = useNavigation();
-  const { user, signOut, updateUser } = useAuth();
+  const { user, signOut, updateUser, isLoading: authLoading } = useAuth();
   const { portfolio, walletBalance } = useApp();
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(user?.name || '');
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const styles = StyleSheet.create({
     container: {
@@ -217,17 +218,37 @@ export const ProfileScreen: React.FC = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out?',
+      'Are you sure you want to sign out? You will need to sign in again to access your account.',
       [
         {
           text: 'Cancel',
           style: 'cancel',
+          onPress: () => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          },
         },
         {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
-            await signOut();
+            try {
+              setIsSigningOut(true);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              await signOut();
+              // Navigation will be handled automatically by AppNavigator
+              // when isAuthenticated becomes false
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (error) {
+              console.error('Sign out error:', error);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert(
+                'Error',
+                'Failed to sign out. Please try again.',
+                [{ text: 'OK' }]
+              );
+            } finally {
+              setIsSigningOut(false);
+            }
           },
         },
       ]
@@ -433,6 +454,8 @@ export const ProfileScreen: React.FC = () => {
           size="large"
           fullWidth
           style={styles.signOutButton}
+          disabled={isSigningOut || authLoading}
+          loading={isSigningOut || authLoading}
         />
       </ScrollView>
     </SafeAreaView>

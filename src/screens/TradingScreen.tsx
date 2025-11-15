@@ -7,6 +7,8 @@ import {
   StatusBar,
   TouchableOpacity,
   RefreshControl,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,7 +20,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { AssetCard } from '../components/AssetCard';
 import { Ionicons } from '@expo/vector-icons';
-import { OptionContract } from '../types';
+import { OptionContract, Asset } from '../types';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 
 export const TradingScreen: React.FC = () => {
@@ -26,11 +28,53 @@ export const TradingScreen: React.FC = () => {
   const { assets, options } = useApp();
   const [activeTab, setActiveTab] = useState<'options' | 'spot'>('options');
   const [refreshing, setRefreshing] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'call' | 'put'>('all');
   const navigation = useNavigation();
 
-  // Calculate statistics for options
+  // Filter and search options
+  const filteredOptions = useMemo(() => {
+    let filtered = options;
+
+    // Filter by type
+    if (filterType !== 'all') {
+      filtered = filtered.filter((opt) => opt.type === filterType);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (opt) =>
+          opt.asset.symbol.toLowerCase().includes(query) ||
+          opt.asset.name.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [options, filterType, searchQuery]);
+
+  // Filter and search assets
+  const filteredAssets = useMemo(() => {
+    let filtered = assets;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (asset) =>
+          asset.symbol.toLowerCase().includes(query) ||
+          asset.name.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [assets, searchQuery]);
+
+  // Calculate statistics for filtered options
   const optionsStats = useMemo(() => {
-    if (options.length === 0) {
+    if (filteredOptions.length === 0) {
       return {
         avgPremium: 0,
         callOptions: 0,
@@ -39,14 +83,14 @@ export const TradingScreen: React.FC = () => {
       };
     }
 
-    const totalPremium = options.reduce((sum, opt) => sum + opt.premium, 0);
-    const avgPremium = totalPremium / options.length;
-    const callOptions = options.filter((opt) => opt.type === 'call').length;
-    const putOptions = options.filter((opt) => opt.type === 'put').length;
-    const totalVolume = options.reduce((sum, opt) => sum + opt.volume, 0);
+    const totalPremium = filteredOptions.reduce((sum, opt) => sum + opt.premium, 0);
+    const avgPremium = totalPremium / filteredOptions.length;
+    const callOptions = filteredOptions.filter((opt) => opt.type === 'call').length;
+    const putOptions = filteredOptions.filter((opt) => opt.type === 'put').length;
+    const totalVolume = filteredOptions.reduce((sum, opt) => sum + opt.volume, 0);
 
     return { avgPremium, callOptions, putOptions, totalVolume };
-  }, [options]);
+  }, [filteredOptions]);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -70,6 +114,28 @@ export const TradingScreen: React.FC = () => {
       expiryDate: option.expiryDate.toISOString(),
     };
     (navigation as any).navigate('TradingDetail', { option: serializedOption });
+  };
+
+  const handleAssetPress = (asset: Asset) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    (navigation as any).navigate('AssetDetail', { asset });
+  };
+
+  const handleSearchPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSearchModal(true);
+  };
+
+  const handleCloseSearch = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowSearchModal(false);
+    setSearchQuery('');
+    setFilterType('all');
+  };
+
+  const handleFilterChange = (type: 'all' | 'call' | 'put') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFilterType(type);
   };
 
   const getDaysToExpiry = (expiryDate: Date) => {
@@ -412,6 +478,93 @@ export const TradingScreen: React.FC = () => {
       textAlign: 'center',
       lineHeight: 20,
     },
+    // Search Modal Styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: theme.colors.background.secondary,
+      borderTopLeftRadius: theme.borderRadius.xl,
+      borderTopRightRadius: theme.borderRadius.xl,
+      padding: theme.spacing.lg,
+      maxHeight: '80%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    modalTitle: {
+      fontSize: theme.typography.fontSize.xl,
+      fontWeight: theme.typography.fontWeight.bold,
+      color: theme.colors.text.primary,
+    },
+    closeButton: {
+      width: 32,
+      height: 32,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor: theme.colors.background.tertiary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    searchInputContainer: {
+      marginBottom: theme.spacing.lg,
+    },
+    searchInput: {
+      backgroundColor: theme.colors.background.tertiary,
+      borderRadius: theme.borderRadius.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      fontSize: theme.typography.fontSize.md,
+      color: theme.colors.text.primary,
+      borderWidth: 1,
+      borderColor: theme.colors.border.dark,
+    },
+    filterSection: {
+      marginBottom: theme.spacing.lg,
+    },
+    filterLabel: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.semiBold,
+      color: theme.colors.text.secondary,
+      marginBottom: theme.spacing.sm,
+    },
+    filterButtons: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    filterButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.borderRadius.md,
+      backgroundColor: theme.colors.background.tertiary,
+      borderWidth: 1,
+      borderColor: theme.colors.border.dark,
+      alignItems: 'center',
+    },
+    filterButtonActive: {
+      backgroundColor: theme.colors.primary[500],
+      borderColor: theme.colors.primary[400],
+    },
+    filterButtonText: {
+      fontSize: theme.typography.fontSize.sm,
+      fontWeight: theme.typography.fontWeight.medium,
+      color: theme.colors.text.secondary,
+    },
+    filterButtonTextActive: {
+      color: theme.colors.text.primary,
+      fontWeight: theme.typography.fontWeight.semiBold,
+    },
+    resultsCount: {
+      fontSize: theme.typography.fontSize.sm,
+      color: theme.colors.text.tertiary,
+      marginTop: theme.spacing.sm,
+      textAlign: 'center',
+    },
   });
 
   return (
@@ -431,9 +584,7 @@ export const TradingScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.headerActionButton}
               activeOpacity={0.7}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }}
+              onPress={handleSearchPress}
             >
               <Ionicons
                 name="search-outline"
@@ -529,7 +680,7 @@ export const TradingScreen: React.FC = () => {
         {activeTab === 'options' ? (
           <>
             {/* Statistics Cards */}
-            {options.length > 0 && (
+            {filteredOptions.length > 0 && (
               <View style={styles.statsContainer}>
                 <Card style={styles.statCard} variant="elevated">
                   <View style={styles.statContent}>
@@ -644,8 +795,8 @@ export const TradingScreen: React.FC = () => {
             </Card>
 
             {/* Enhanced Options Contracts */}
-            {options.length > 0 ? (
-              options.map((option) => (
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => (
                 <TouchableOpacity
                   key={option.id}
                   activeOpacity={0.9}
@@ -832,9 +983,13 @@ export const TradingScreen: React.FC = () => {
               </LinearGradient>
             </Card>
 
-            {assets.length > 0 ? (
-              assets.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} />
+            {filteredAssets.length > 0 ? (
+              filteredAssets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  onPress={() => handleAssetPress(asset)}
+                />
               ))
             ) : (
               <Card style={styles.emptyCard} variant="outlined">
@@ -864,6 +1019,120 @@ export const TradingScreen: React.FC = () => {
           </>
         )}
       </ScrollView>
+
+      {/* Search Modal */}
+      <Modal
+        visible={showSearchModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleCloseSearch}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={handleCloseSearch}
+          />
+          <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {activeTab === 'options' ? 'Search Options' : 'Search Assets'}
+              </Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleCloseSearch}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={theme.colors.text.primary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.searchInputContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Search ${activeTab === 'options' ? 'options' : 'assets'}...`}
+                placeholderTextColor={theme.colors.text.tertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            {/* Filter Options (only for options tab) */}
+            {activeTab === 'options' && (
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Filter by Type</Text>
+                <View style={styles.filterButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterButton,
+                      filterType === 'all' && styles.filterButtonActive,
+                    ]}
+                    onPress={() => handleFilterChange('all')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.filterButtonText,
+                        filterType === 'all' && styles.filterButtonTextActive,
+                      ]}
+                    >
+                      All
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterButton,
+                      filterType === 'call' && styles.filterButtonActive,
+                    ]}
+                    onPress={() => handleFilterChange('call')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.filterButtonText,
+                        filterType === 'call' && styles.filterButtonTextActive,
+                      ]}
+                    >
+                      Call
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterButton,
+                      filterType === 'put' && styles.filterButtonActive,
+                    ]}
+                    onPress={() => handleFilterChange('put')}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.filterButtonText,
+                        filterType === 'put' && styles.filterButtonTextActive,
+                      ]}
+                    >
+                      Put
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Results Count */}
+            <Text style={styles.resultsCount}>
+              {activeTab === 'options'
+                ? `${filteredOptions.length} option${filteredOptions.length !== 1 ? 's' : ''} found`
+                : `${filteredAssets.length} asset${filteredAssets.length !== 1 ? 's' : ''} found`}
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };

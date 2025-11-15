@@ -48,7 +48,7 @@ export const SplashScreen: React.FC = () => {
         Animated.sequence([
           Animated.timing(rotateAnim, {
             toValue: 1,
-            duration: 2000,
+            duration: 5000,
             easing: Easing.inOut(Easing.ease),
             useNativeDriver: true,
           }),
