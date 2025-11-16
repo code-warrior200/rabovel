@@ -592,20 +592,6 @@ export const TradingScreen: React.FC = () => {
                 color={theme.colors.text.secondary}
               />
             </TouchableOpacity>
-            <View style={styles.headerIconContainer}>
-              <LinearGradient
-                colors={theme.colors.gradient.primary}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.headerIconGradient}
-              >
-                <Ionicons
-                  name="swap-horizontal"
-                  size={22}
-                  color={theme.colors.text.primary}
-                />
-              </LinearGradient>
-            </View>
           </View>
         </View>
       </View>

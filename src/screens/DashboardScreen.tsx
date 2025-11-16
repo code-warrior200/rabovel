@@ -32,7 +32,8 @@ export const DashboardScreen: React.FC = () => {
   const navigation = useNavigation();
   const [refreshing, setRefreshing] = useState(false);
   const [showBalance, setShowBalance] = useState(true);
-  
+  const [selectedList, setSelectedList] = useState<'pools' | 'assets'>('pools');
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -318,51 +319,6 @@ export const DashboardScreen: React.FC = () => {
             ))}
           </View>
 
-          {/* Wallet Balance Card */}
-          <Card style={StyleSheet.flatten([styles.walletCard, { backgroundColor: theme.colors.background.card }])}>
-            <View style={styles.walletHeader}>
-              <View style={styles.walletInfo}>
-                <View style={[styles.walletIconContainer, { backgroundColor: `${theme.colors.secondary[400]}20` }]}>
-                  <Ionicons
-                    name="wallet-outline"
-                    size={24}
-                    color={theme.colors.secondary[400]}
-                  />
-                </View>
-                <View>
-                  <Text style={[styles.walletLabel, { color: theme.colors.text.secondary }]}>
-                    Available Balance
-                  </Text>
-                  <Text style={[styles.walletValue, { color: theme.colors.text.primary }]}>
-                    {showBalance ? formatCurrency(walletBalance) : '••••••'}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.walletActions}>
-                <TouchableOpacity
-                  style={[styles.walletActionButton, { backgroundColor: `${theme.colors.primary[400]}20` }]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    (navigation as any).navigate('Deposit');
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="add" size={20} color={theme.colors.primary[400]} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.walletActionButton, { backgroundColor: `${theme.colors.secondary[400]}20` }]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    (navigation as any).navigate('Withdraw');
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="arrow-up" size={20} color={theme.colors.secondary[400]} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Card>
-
           {/* Quick Actions */}
           <View style={styles.quickActionsSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
@@ -396,64 +352,87 @@ export const DashboardScreen: React.FC = () => {
             </ScrollView>
           </View>
 
-          {/* Active Stakes Section */}
-          {stakingPools.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-                  Active Staking Pools
-                </Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    (navigation as any).navigate('MainTabs', { screen: 'Staking' });
-                  }}
-                >
-                  <Text style={[styles.seeAllText, { color: theme.colors.primary[400] }]}>
-                    See All
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              {stakingPools.slice(0, 2).map((pool) => (
-                <AssetCard
-                  key={pool.id}
-                  asset={pool.asset}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    (navigation as any).navigate('AssetDetail', { asset: pool.asset });
-                  }}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* Top Assets Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.colors.text.primary }]}>
-                Top Assets
+                {selectedList === 'pools' ? 'Active Staking Pools' : 'Top Assets'}
               </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  (navigation as any).navigate('MainTabs', { screen: 'Market' });
-                }}
-              >
-                <Text style={[styles.seeAllText, { color: theme.colors.primary[400] }]}>
-                  See All
-                </Text>
-              </TouchableOpacity>
+              <View style={styles.filterToggleContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterToggleButton,
+                    selectedList === 'pools' && { backgroundColor: `${theme.colors.primary[400]}20` },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedList('pools');
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.filterToggleText,
+                      {
+                        color:
+                          selectedList === 'pools'
+                            ? theme.colors.primary[400]
+                            : theme.colors.text.secondary,
+                      },
+                    ]}
+                  >
+                    Active Pools
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.filterToggleButton,
+                    selectedList === 'assets' && { backgroundColor: `${theme.colors.primary[400]}20` },
+                  ]}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedList('assets');
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.filterToggleText,
+                      {
+                        color:
+                          selectedList === 'assets'
+                            ? theme.colors.primary[400]
+                            : theme.colors.text.secondary,
+                      },
+                    ]}
+                  >
+                    Top Assets
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            {assets.slice(0, 3).map((asset) => (
-              <AssetCard
-                key={asset.id}
-                asset={asset}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  (navigation as any).navigate('AssetDetail', { asset });
-                }}
-              />
-            ))}
+            {selectedList === 'pools'
+              ? stakingPools
+                  .slice(0, 2)
+                  .map((pool) => (
+                    <AssetCard
+                      key={pool.id}
+                      asset={pool.asset}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        (navigation as any).navigate('AssetDetail', { asset: pool.asset });
+                      }}
+                    />
+                  ))
+              : assets.slice(0, 3).map((asset) => (
+                  <AssetCard
+                    key={asset.id}
+                    asset={asset}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      (navigation as any).navigate('AssetDetail', { asset });
+                    }}
+                  />
+                ))}
           </View>
         </ScrollView>
       </Animated.View>
@@ -619,50 +598,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  walletCard: {
-    marginBottom: 24,
-    padding: 20,
-    borderRadius: 20,
-  },
-  walletHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  walletInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 16,
-  },
-  walletIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  walletLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  walletValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    letterSpacing: -0.5,
-  },
-  walletActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  walletActionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   quickActionsSection: {
     marginBottom: 24,
   },
@@ -709,6 +644,21 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 14,
+    fontWeight: '600',
+  },
+  filterToggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    padding: 2,
+    gap: 4,
+  },
+  filterToggleButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  filterToggleText: {
+    fontSize: 12,
     fontWeight: '600',
   },
 });
